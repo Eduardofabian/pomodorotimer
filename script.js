@@ -1,10 +1,11 @@
 // Global variables
 let timeLeft = 25 * 60; 
+let endTime; // NOVO: Guarda a hora exata que vai acabar
 let timerInterval;
 let currentInterval = 'pomodoro';
 let pomodoroCount = 0; 
 let isRinging = false; 
-let audioUnlocked = false; // NOVO: Controle para saber se já liberamos o som
+let audioUnlocked = false; 
 let backgroundColor = '#F1F1EF'; 
 let fontColor = '#37352F'; 
 
@@ -29,14 +30,13 @@ const saveBtn = document.getElementById('save-btn');
 // --- HACK PARA O NOTION: Desbloquear Áudio ---
 function unlockAudio() {
   if (!audioUnlocked) {
-    // Toca o som volume 0 só para o navegador liberar a permissão
     alarmSound.volume = 0;
     alarmSound.play().then(() => {
       alarmSound.pause();
       alarmSound.currentTime = 0;
-      alarmSound.volume = 1; // Devolve o volume para o máximo
+      alarmSound.volume = 1; 
       audioUnlocked = true;
-    }).catch(e => console.log("Erro ao desbloquear áudio (normal se não houve clique ainda):", e));
+    }).catch(e => console.log("Erro ao desbloquear áudio:", e));
   }
 }
 
@@ -82,10 +82,8 @@ longBreakIntervalBtn.addEventListener('click', () => {
 
 // --- LÓGICA PRINCIPAL DO BOTÃO START/STOP/ALARM ---
 startStopBtn.addEventListener('click', () => {
-  // 1. Tenta desbloquear o áudio no primeiro clique do usuário
-  unlockAudio();
+  unlockAudio(); // Tenta desbloquear no clique
 
-  // 2. Lógica normal
   if (isRinging) {
     stopAlarm();
     return; 
@@ -118,21 +116,35 @@ saveBtn.addEventListener('click', () => {
   settingsModal.style.display = 'none';
 });
 
-// --- TIMER LOGIC ---
+// --- TIMER LOGIC (CORRIGIDA COM DATE.NOW) ---
 function startTimer() {
   clearInterval(timerInterval); 
+  
+  // Define o momento exato no futuro em que o tempo acaba
+  // Date.now() é em milissegundos, então multiplicamos timeLeft * 1000
+  endTime = Date.now() + (timeLeft * 1000);
 
   timerInterval = setInterval(() => {
-    timeLeft--;
-    updateTimeLeftTextContent();
+    // Calcula quanto tempo falta comparando o AGORA com o ENDTIME
+    const secondsRemaining = Math.ceil((endTime - Date.now()) / 1000);
+    
+    // Atualizamos a variável global visualmente
+    timeLeft = secondsRemaining;
 
-    if (timeLeft < 0) {
+    if (timeLeft >= 0) {
+        updateTimeLeftTextContent();
+    }
+
+    if (timeLeft <= 0) {
       clearInterval(timerInterval); 
-      
+      timeLeft = 0; // Garante que fique em 0 visualmente
+      updateTimeLeftTextContent();
+
       isRinging = true;
       alarmSound.play().catch(e => console.log("O navegador bloqueou o som:", e)); 
       startStopBtn.textContent = 'STOP ALARM'; 
       
+      // Prepara o próximo
       if (currentInterval === 'pomodoro') {
         pomodoroCount++;
         if (pomodoroCount % 2 === 0) {
@@ -144,11 +156,13 @@ function startTimer() {
         switchMode('pomodoro');
       }
     }
-  }, 1000);
+  }, 1000); // O intervalo continua rodando a cada 1s para atualizar a tela
 }
 
 function stopTimer() {
   clearInterval(timerInterval);
+  // Não precisamos fazer nada com timeLeft aqui, ele já está com o valor
+  // correto da última atualização do loop
 }
 
 function updateTimeLeftTextContent() {
