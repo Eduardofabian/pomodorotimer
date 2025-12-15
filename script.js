@@ -3,13 +3,14 @@ let timeLeft = 25 * 60;
 let timerInterval;
 let currentInterval = 'pomodoro';
 let pomodoroCount = 0; 
-let isRinging = false; // NOVA VARIAVEL: Controla se o alarme está tocando
+let isRinging = false; 
+let audioUnlocked = false; // NOVO: Controle para saber se já liberamos o som
 let backgroundColor = '#F1F1EF'; 
 let fontColor = '#37352F'; 
 
 // Som do Alarme
 const alarmSound = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
-alarmSound.loop = true; // NOVO: O som vai repetir infinitamente até você parar
+alarmSound.loop = true; 
 
 // DOM elements
 const timeLeftEl = document.getElementById('time-left');
@@ -25,12 +26,26 @@ const backgroundColorSelect = document.getElementById('background-color');
 const fontColorSelect = document.getElementById('font-color');
 const saveBtn = document.getElementById('save-btn');
 
+// --- HACK PARA O NOTION: Desbloquear Áudio ---
+function unlockAudio() {
+  if (!audioUnlocked) {
+    // Toca o som volume 0 só para o navegador liberar a permissão
+    alarmSound.volume = 0;
+    alarmSound.play().then(() => {
+      alarmSound.pause();
+      alarmSound.currentTime = 0;
+      alarmSound.volume = 1; // Devolve o volume para o máximo
+      audioUnlocked = true;
+    }).catch(e => console.log("Erro ao desbloquear áudio (normal se não houve clique ainda):", e));
+  }
+}
+
 // --- Função para parar o som ---
 function stopAlarm() {
   alarmSound.pause();
-  alarmSound.currentTime = 0; // Reinicia o áudio para o começo
+  alarmSound.currentTime = 0; 
   isRinging = false;
-  startStopBtn.textContent = 'Start'; // Volta o botão ao normal
+  startStopBtn.textContent = 'Start'; 
 }
 
 // --- Função para trocar o modo ---
@@ -49,7 +64,7 @@ function switchMode(mode) {
 // Event listeners for interval buttons
 pomodoroIntervalBtn.addEventListener('click', () => {
   stopTimer();
-  stopAlarm(); // Garante que o som pare se mudar de aba
+  stopAlarm(); 
   switchMode('pomodoro');
 });
 
@@ -67,13 +82,15 @@ longBreakIntervalBtn.addEventListener('click', () => {
 
 // --- LÓGICA PRINCIPAL DO BOTÃO START/STOP/ALARM ---
 startStopBtn.addEventListener('click', () => {
-  // Cenario 1: O alarme está tocando. O clique serve para CALAR a boca dele.
+  // 1. Tenta desbloquear o áudio no primeiro clique do usuário
+  unlockAudio();
+
+  // 2. Lógica normal
   if (isRinging) {
     stopAlarm();
-    return; // Para a execução aqui, não inicia o timer ainda
+    return; 
   }
 
-  // Cenario 2: Timer normal
   if (startStopBtn.textContent === 'Start') {
     startTimer();
     startStopBtn.textContent = 'Pause';
@@ -109,20 +126,15 @@ function startTimer() {
     timeLeft--;
     updateTimeLeftTextContent();
 
-    // Quando o tempo acaba
     if (timeLeft < 0) {
-      clearInterval(timerInterval); // Para o cronômetro
+      clearInterval(timerInterval); 
       
-      // 1. Ativa o Modo "Tocando Alarme"
       isRinging = true;
-      alarmSound.play(); 
-      startStopBtn.textContent = 'STOP ALARM'; // Muda o texto do botão para avisar
+      alarmSound.play().catch(e => console.log("O navegador bloqueou o som:", e)); 
+      startStopBtn.textContent = 'STOP ALARM'; 
       
-      // 2. Já prepara o próximo tempo no fundo (mas não inicia)
       if (currentInterval === 'pomodoro') {
         pomodoroCount++;
-        console.log(`Pomodoros: ${pomodoroCount}`);
-        
         if (pomodoroCount % 2 === 0) {
           switchMode('long-break'); 
         } else {
@@ -131,8 +143,6 @@ function startTimer() {
       } else {
         switchMode('pomodoro');
       }
-      // Nota: O tempo na tela já mudou para o próximo (ex: 05:00), 
-      // mas o alarme continua tocando até você clicar em "STOP ALARM".
     }
   }, 1000);
 }
