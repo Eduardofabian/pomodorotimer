@@ -1,13 +1,15 @@
 // Global variables
-let timeLeft = 25 * 60; // seconds
+let timeLeft = 25 * 60; 
 let timerInterval;
 let currentInterval = 'pomodoro';
-let pomodoroCount = 0; // Contador de pomodoros completados
+let pomodoroCount = 0; 
+let isRinging = false; // NOVA VARIAVEL: Controla se o alarme está tocando
 let backgroundColor = '#F1F1EF'; 
 let fontColor = '#37352F'; 
 
 // Som do Alarme
 const alarmSound = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
+alarmSound.loop = true; // NOVO: O som vai repetir infinitamente até você parar
 
 // DOM elements
 const timeLeftEl = document.getElementById('time-left');
@@ -23,7 +25,15 @@ const backgroundColorSelect = document.getElementById('background-color');
 const fontColorSelect = document.getElementById('font-color');
 const saveBtn = document.getElementById('save-btn');
 
-// --- Função para trocar o modo e atualizar o tempo na tela ---
+// --- Função para parar o som ---
+function stopAlarm() {
+  alarmSound.pause();
+  alarmSound.currentTime = 0; // Reinicia o áudio para o começo
+  isRinging = false;
+  startStopBtn.textContent = 'Start'; // Volta o botão ao normal
+}
+
+// --- Função para trocar o modo ---
 function switchMode(mode) {
   currentInterval = mode;
   if (mode === 'pomodoro') {
@@ -31,37 +41,39 @@ function switchMode(mode) {
   } else if (mode === 'short-break') {
     timeLeft = 5 * 60;
   } else if (mode === 'long-break') {
-    timeLeft = 10 * 60; // Descanso longo
+    timeLeft = 10 * 60; 
   }
   updateTimeLeftTextContent();
-  
-  // Atualiza visualmente qual botão está "ativo" (opcional, mas ajuda na UX)
-  updateActiveButton(mode);
 }
 
-function updateActiveButton(mode) {
-  // Reseta bordas/estilos se quiser (aqui mantemos simples)
-  // Você pode adicionar classes CSS aqui se quiser destacar o botão atual
-}
-
-// Event listeners for interval buttons (Click manual)
+// Event listeners for interval buttons
 pomodoroIntervalBtn.addEventListener('click', () => {
   stopTimer();
+  stopAlarm(); // Garante que o som pare se mudar de aba
   switchMode('pomodoro');
 });
 
 shortBreakIntervalBtn.addEventListener('click', () => {
   stopTimer();
+  stopAlarm();
   switchMode('short-break');
 });
 
 longBreakIntervalBtn.addEventListener('click', () => {
   stopTimer();
+  stopAlarm();
   switchMode('long-break');
 });
 
-// Event listener for start/stop button
+// --- LÓGICA PRINCIPAL DO BOTÃO START/STOP/ALARM ---
 startStopBtn.addEventListener('click', () => {
+  // Cenario 1: O alarme está tocando. O clique serve para CALAR a boca dele.
+  if (isRinging) {
+    stopAlarm();
+    return; // Para a execução aqui, não inicia o timer ainda
+  }
+
+  // Cenario 2: Timer normal
   if (startStopBtn.textContent === 'Start') {
     startTimer();
     startStopBtn.textContent = 'Pause';
@@ -71,15 +83,15 @@ startStopBtn.addEventListener('click', () => {
   }
 });
 
-// Event listener for reset button
 resetBtn.addEventListener('click', () => {
   stopTimer();
-  pomodoroCount = 0; // Reseta a contagem de ciclos se resetar tudo
-  switchMode('pomodoro'); // Volta pro padrão
+  stopAlarm();
+  pomodoroCount = 0; 
+  switchMode('pomodoro');
   startStopBtn.textContent = 'Start';
 });
 
-// Settings Modal Logic
+// Settings Modal
 settingsBtn.addEventListener('click', () => { settingsModal.style.display = 'flex'; });
 closeModalBtn.addEventListener('click', () => { settingsModal.style.display = 'none'; });
 saveBtn.addEventListener('click', () => {
@@ -91,36 +103,36 @@ saveBtn.addEventListener('click', () => {
 
 // --- TIMER LOGIC ---
 function startTimer() {
-  clearInterval(timerInterval); // Limpa para evitar sobreposição
+  clearInterval(timerInterval); 
 
   timerInterval = setInterval(() => {
     timeLeft--;
     updateTimeLeftTextContent();
 
-    // Quando o tempo acaba (chega a 0)
+    // Quando o tempo acaba
     if (timeLeft < 0) {
-      clearInterval(timerInterval); // Para o contador
-      alarmSound.play(); // Toca o som
-      startStopBtn.textContent = 'Start'; // Volta o botão para "Start"
-
-      // LÓGICA DE TRANSIÇÃO (Mas sem auto-start)
+      clearInterval(timerInterval); // Para o cronômetro
+      
+      // 1. Ativa o Modo "Tocando Alarme"
+      isRinging = true;
+      alarmSound.play(); 
+      startStopBtn.textContent = 'STOP ALARM'; // Muda o texto do botão para avisar
+      
+      // 2. Já prepara o próximo tempo no fundo (mas não inicia)
       if (currentInterval === 'pomodoro') {
-        pomodoroCount++; // Conta +1 Pomodoro feito
+        pomodoroCount++;
+        console.log(`Pomodoros: ${pomodoroCount}`);
         
-        console.log(`Pomodoros completados: ${pomodoroCount}`);
-
-        // Verifica se é hora do descanso longo (múltiplo de 2)
         if (pomodoroCount % 2 === 0) {
           switchMode('long-break'); 
-          // O tempo mudou para 10:00, o usuário vê e clica Start quando quiser
         } else {
           switchMode('short-break');
-          // O tempo mudou para 05:00
         }
       } else {
-        // Se acabou qualquer descanso (curto ou longo), volta pro trabalho
         switchMode('pomodoro');
       }
+      // Nota: O tempo na tela já mudou para o próximo (ex: 05:00), 
+      // mas o alarme continua tocando até você clicar em "STOP ALARM".
     }
   }, 1000);
 }
