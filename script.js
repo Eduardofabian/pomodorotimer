@@ -2,8 +2,12 @@
 let timeLeft = 25 * 60; // seconds
 let timerInterval;
 let currentInterval = 'pomodoro';
-let backgroundColor = '#F1F1EF'; // Default background color
-let fontColor = '#37352F'; // Default font color
+let pomodoroCount = 0; // Contador de pomodoros completados
+let backgroundColor = '#F1F1EF'; 
+let fontColor = '#37352F'; 
+
+// Som do Alarme
+const alarmSound = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
 
 // DOM elements
 const timeLeftEl = document.getElementById('time-left');
@@ -19,131 +23,128 @@ const backgroundColorSelect = document.getElementById('background-color');
 const fontColorSelect = document.getElementById('font-color');
 const saveBtn = document.getElementById('save-btn');
 
-// Event listeners for interval buttons
-pomodoroIntervalBtn.addEventListener('click', () => {
-  currentInterval = 'pomodoro';
-  timeLeft = 25 * 60;
+// --- Função para trocar o modo e atualizar o tempo na tela ---
+function switchMode(mode) {
+  currentInterval = mode;
+  if (mode === 'pomodoro') {
+    timeLeft = 25 * 60;
+  } else if (mode === 'short-break') {
+    timeLeft = 5 * 60;
+  } else if (mode === 'long-break') {
+    timeLeft = 10 * 60; // Descanso longo
+  }
   updateTimeLeftTextContent();
+  
+  // Atualiza visualmente qual botão está "ativo" (opcional, mas ajuda na UX)
+  updateActiveButton(mode);
+}
+
+function updateActiveButton(mode) {
+  // Reseta bordas/estilos se quiser (aqui mantemos simples)
+  // Você pode adicionar classes CSS aqui se quiser destacar o botão atual
+}
+
+// Event listeners for interval buttons (Click manual)
+pomodoroIntervalBtn.addEventListener('click', () => {
+  stopTimer();
+  switchMode('pomodoro');
 });
 
 shortBreakIntervalBtn.addEventListener('click', () => {
-  currentInterval = 'short-break';
-  timeLeft = 5 * 60;
-  updateTimeLeftTextContent();
+  stopTimer();
+  switchMode('short-break');
 });
 
 longBreakIntervalBtn.addEventListener('click', () => {
-  currentInterval = 'long-break';
-  timeLeft = 10 * 60;
-  updateTimeLeftTextContent();
+  stopTimer();
+  switchMode('long-break');
 });
 
 // Event listener for start/stop button
 startStopBtn.addEventListener('click', () => {
   if (startStopBtn.textContent === 'Start') {
     startTimer();
-    startStopBtn.textContent = 'Stop';
+    startStopBtn.textContent = 'Pause';
   } else {
     stopTimer();
+    startStopBtn.textContent = 'Start';
   }
 });
 
 // Event listener for reset button
 resetBtn.addEventListener('click', () => {
   stopTimer();
-  if (currentInterval === 'pomodoro') {
-    timeLeft = 25 * 60;
-  } else if (currentInterval === 'short-break') {
-    timeLeft = 5 * 60;
-  } else {
-    timeLeft = 10 * 60;
-  }
-  updateTimeLeftTextContent();
+  pomodoroCount = 0; // Reseta a contagem de ciclos se resetar tudo
+  switchMode('pomodoro'); // Volta pro padrão
   startStopBtn.textContent = 'Start';
 });
 
-// Event listener for settings button
-settingsBtn.addEventListener('click', () => {
-  settingsModal.style.display = 'flex';
-});
-
-// Event listener for close button in the settings modal
-closeModalBtn.addEventListener('click', () => {
-  settingsModal.style.display = 'none';
-});
-
-// Event listener for save button in the settings modal
+// Settings Modal Logic
+settingsBtn.addEventListener('click', () => { settingsModal.style.display = 'flex'; });
+closeModalBtn.addEventListener('click', () => { settingsModal.style.display = 'none'; });
 saveBtn.addEventListener('click', () => {
-  const newBackgroundColor = backgroundColorSelect.value;
-  const newFontColor = fontColorSelect.value;
-
-  // Save preferences to localStorage
-  localStorage.setItem('backgroundColor', newBackgroundColor);
-  localStorage.setItem('fontColor', newFontColor);
-
-  // Apply the new saved preferences
+  localStorage.setItem('backgroundColor', backgroundColorSelect.value);
+  localStorage.setItem('fontColor', fontColorSelect.value);
   applyUserPreferences();
-
-  // Close the modal after saving preferences
   settingsModal.style.display = 'none';
 });
 
-// Function to start the timer
+// --- TIMER LOGIC ---
 function startTimer() {
+  clearInterval(timerInterval); // Limpa para evitar sobreposição
+
   timerInterval = setInterval(() => {
     timeLeft--;
     updateTimeLeftTextContent();
-    if (timeLeft === 0) {
-      clearInterval(timerInterval);
+
+    // Quando o tempo acaba (chega a 0)
+    if (timeLeft < 0) {
+      clearInterval(timerInterval); // Para o contador
+      alarmSound.play(); // Toca o som
+      startStopBtn.textContent = 'Start'; // Volta o botão para "Start"
+
+      // LÓGICA DE TRANSIÇÃO (Mas sem auto-start)
       if (currentInterval === 'pomodoro') {
-        timeLeft = 5 * 60;
-        currentInterval = 'short-break';
-        startTimer();
-      } else if (currentInterval === 'short-break') {
-        timeLeft = 10 * 60;
-        currentInterval = 'long-break';
-        startTimer();
+        pomodoroCount++; // Conta +1 Pomodoro feito
+        
+        console.log(`Pomodoros completados: ${pomodoroCount}`);
+
+        // Verifica se é hora do descanso longo (múltiplo de 2)
+        if (pomodoroCount % 2 === 0) {
+          switchMode('long-break'); 
+          // O tempo mudou para 10:00, o usuário vê e clica Start quando quiser
+        } else {
+          switchMode('short-break');
+          // O tempo mudou para 05:00
+        }
       } else {
-        timeLeft = 25 * 60;
-        currentInterval = 'pomodoro';
+        // Se acabou qualquer descanso (curto ou longo), volta pro trabalho
+        switchMode('pomodoro');
       }
     }
   }, 1000);
 }
 
-// Function to stop the timer
 function stopTimer() {
   clearInterval(timerInterval);
-  startStopBtn.textContent = 'Start';
 }
 
-// Function to update the time left text content
 function updateTimeLeftTextContent() {
   const minutes = Math.floor(timeLeft / 60);
   const seconds = timeLeft % 60;
   timeLeftEl.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 }
 
-// Function to apply the user's saved preferences
 function applyUserPreferences() {
-  // Retrieve user preferences from localStorage
   const savedBackgroundColor = localStorage.getItem('backgroundColor');
   const savedFontColor = localStorage.getItem('fontColor');
+  if (savedBackgroundColor) backgroundColor = savedBackgroundColor;
+  if (savedFontColor) fontColor = savedFontColor;
 
-  // Apply the preferences if they exist in localStorage
-  if (savedBackgroundColor) {
-    backgroundColor = savedBackgroundColor;
-  }
-
-  if (savedFontColor) {
-    fontColor = savedFontColor;
-  }
-
-  // Apply the preferences to the Pomodoro Timer widget
   document.body.style.backgroundColor = backgroundColor;
   document.body.style.color = fontColor;
   timeLeftEl.style.color = fontColor;
-  // Update the buttons' font and background color
+  
   const buttons = document.querySelectorAll('.interval-btn, #start-stop-btn, #reset-btn, #settings-btn');
   buttons.forEach((button) => {
     button.style.color = fontColor;
@@ -152,5 +153,4 @@ function applyUserPreferences() {
   });
 }
 
-// Apply user preferences on page load
 applyUserPreferences();
