@@ -5,7 +5,29 @@
 body {
   overflow-x: hidden;
   overflow-y: hidden;
+  transition: background-color 0.3s ease, color 0.3s ease; /* Suaviza a troca de cor normal */
 }
+
+/* --- CLASSE DE ALARME (PISCAR) --- */
+@keyframes urgent-flash {
+  0% { background-color: #ff3b3b; } /* Vermelho Alerta */
+  50% { background-color: #2d0a0a; } /* Vermelho Escuro/Preto */
+  100% { background-color: #ff3b3b; }
+}
+
+.alarm-flashing {
+  animation: urgent-flash 0.8s infinite !important; /* !important para forçar sobre a cor do tema */
+  background-color: #ff3b3b !important;
+}
+
+/* Quando estiver piscando, força o texto e botões a ficarem brancos para leitura */
+.alarm-flashing #time-left,
+.alarm-flashing button,
+.alarm-flashing .interval-btn {
+  color: #ffffff !important;
+  border-color: #ffffff !important;
+}
+/* -------------------------------- */
 
 #pomodoro-container {
   display: flex;
@@ -70,6 +92,7 @@ body {
   cursor: pointer;
 }
 
+/* Modal Styles */
 #settings-modal {
   font-family: Rubik;
   display: none;
@@ -105,7 +128,6 @@ body {
 }
 
 .setting-option {
- 
   align-item:center;
   font-family: Rubik;
   margin-bottom: 10px;
@@ -117,7 +139,6 @@ body {
   display:flex;
   align-item:center;
 }
-
 
 .setting-option label {
   text-align:center;
@@ -137,9 +158,7 @@ body {
   padding: 10px 20px;
   cursor: pointer;
   transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
-  
 }
-
 
 #save-btn:hover {
   background-color: grey;
@@ -149,13 +168,10 @@ body {
 
 #option{
   font-family:Rubik;
-  
 }
 
 select {
-  // A reset of styles, including removing the default dropdown arrow
   appearance: none;
-  // Additional resets for further consistency
   background-color: transparent;
   border: none;
   padding: 0 1em 0 0;
