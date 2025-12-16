@@ -1,6 +1,6 @@
 // Global variables
 let timeLeft = 25 * 60; 
-let endTime; // NOVO: Guarda a hora exata que vai acabar
+let endTime; 
 let timerInterval;
 let currentInterval = 'pomodoro';
 let pomodoroCount = 0; 
@@ -9,8 +9,9 @@ let audioUnlocked = false;
 let backgroundColor = '#F1F1EF'; 
 let fontColor = '#37352F'; 
 
-// Som do Alarme
-const alarmSound = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
+// --- SOM MAIS ALTO (Digital Alarm Clock) ---
+// Esse som é mais agudo e perceptível que o beep anterior
+const alarmSound = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-alarm-digital-clock-beep-989.mp3');
 alarmSound.loop = true; 
 
 // DOM elements
@@ -34,18 +35,21 @@ function unlockAudio() {
     alarmSound.play().then(() => {
       alarmSound.pause();
       alarmSound.currentTime = 0;
-      alarmSound.volume = 1; 
+      alarmSound.volume = 1; // Garante volume máximo
       audioUnlocked = true;
     }).catch(e => console.log("Erro ao desbloquear áudio:", e));
   }
 }
 
-// --- Função para parar o som ---
+// --- Função para parar o som e o visual ---
 function stopAlarm() {
   alarmSound.pause();
   alarmSound.currentTime = 0; 
   isRinging = false;
-  startStopBtn.textContent = 'Start'; 
+  startStopBtn.textContent = 'Start';
+  
+  // REMOVE O PISCA-PISCA
+  document.body.classList.remove('alarm-flashing');
 }
 
 // --- Função para trocar o modo ---
@@ -82,7 +86,7 @@ longBreakIntervalBtn.addEventListener('click', () => {
 
 // --- LÓGICA PRINCIPAL DO BOTÃO START/STOP/ALARM ---
 startStopBtn.addEventListener('click', () => {
-  unlockAudio(); // Tenta desbloquear no clique
+  unlockAudio(); 
 
   if (isRinging) {
     stopAlarm();
@@ -116,19 +120,13 @@ saveBtn.addEventListener('click', () => {
   settingsModal.style.display = 'none';
 });
 
-// --- TIMER LOGIC (CORRIGIDA COM DATE.NOW) ---
+// --- TIMER LOGIC ---
 function startTimer() {
   clearInterval(timerInterval); 
-  
-  // Define o momento exato no futuro em que o tempo acaba
-  // Date.now() é em milissegundos, então multiplicamos timeLeft * 1000
   endTime = Date.now() + (timeLeft * 1000);
 
   timerInterval = setInterval(() => {
-    // Calcula quanto tempo falta comparando o AGORA com o ENDTIME
     const secondsRemaining = Math.ceil((endTime - Date.now()) / 1000);
-    
-    // Atualizamos a variável global visualmente
     timeLeft = secondsRemaining;
 
     if (timeLeft >= 0) {
@@ -137,14 +135,20 @@ function startTimer() {
 
     if (timeLeft <= 0) {
       clearInterval(timerInterval); 
-      timeLeft = 0; // Garante que fique em 0 visualmente
+      timeLeft = 0; 
       updateTimeLeftTextContent();
 
+      // DISPARAR ALARME E VISUAL
       isRinging = true;
-      alarmSound.play().catch(e => console.log("O navegador bloqueou o som:", e)); 
       startStopBtn.textContent = 'STOP ALARM'; 
       
-      // Prepara o próximo
+      // 1. Toca o som novo (mais alto)
+      alarmSound.play().catch(e => console.log("O navegador bloqueou o som:", e)); 
+      
+      // 2. Ativa o modo PISCAR TELA VERMELHA
+      document.body.classList.add('alarm-flashing');
+
+      // Lógica de próximo ciclo (já prepara o tempo para quando você clicar STOP)
       if (currentInterval === 'pomodoro') {
         pomodoroCount++;
         if (pomodoroCount % 2 === 0) {
@@ -156,13 +160,11 @@ function startTimer() {
         switchMode('pomodoro');
       }
     }
-  }, 1000); // O intervalo continua rodando a cada 1s para atualizar a tela
+  }, 1000); 
 }
 
 function stopTimer() {
   clearInterval(timerInterval);
-  // Não precisamos fazer nada com timeLeft aqui, ele já está com o valor
-  // correto da última atualização do loop
 }
 
 function updateTimeLeftTextContent() {
