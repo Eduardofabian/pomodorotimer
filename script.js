@@ -1,226 +1,278 @@
-// Global variables
+// Global Variables
 let timeLeft = 25 * 60; 
 let endTime; 
 let timerInterval;
 let currentInterval = 'pomodoro';
 let pomodoroCount = 0; 
 let isRinging = false; 
-let audioUnlocked = false; 
 
-// Preferências do Usuário
-let backgroundColor = '#F1F1EF'; 
-let fontColor = '#37352F'; 
-let brownNoiseEnabled = false; // Começa desligado por padrão, usuário ativa se quiser
+// Preferências
+let brownNoiseEnabled = false;
+let backgroundColor = '#F1F1EF';
+let fontColor = '#37352F';
 
-// --- SONS ---
-// 1. Alarme (Digital Clock)
-const alarmSound = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-alarm-digital-clock-beep-989.mp3');
-alarmSound.loop = true; 
+// --- AUDIO ENGINE (Sintetizador Web Audio API) ---
+// Resolve problema de CORS e Notion bloqueando arquivos externos
+const AudioContext = window.AudioContext || window.webkitAudioContext;
+let audioCtx;
+let brownNoiseNode = null;
+let alarmOscillator = null;
+let alarmInterval = null;
 
-// 2. Brown Noise (Ruído Marrom) - Arquivo confiável da Wikimedia
-const brownNoise = new Audio('https://upload.wikimedia.org/wikipedia/commons/e/e3/Brown_noise.ogg');
-brownNoise.loop = true; 
-brownNoise.volume = 0.6; // Volume agradável (60%)
+function initAudio() {
+  if (!audioCtx) {
+    audioCtx = new AudioContext();
+  }
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+}
 
-// DOM elements
+// 1. Gerador de Brown Noise (Ruído Marrom)
+function createBrownNoise() {
+  const bufferSize = audioCtx.sampleRate * 2; // 2 segundos de buffer
+  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  let lastOut = 0;
+  
+  for (let i = 0; i < bufferSize; i++) {
+    const white = Math.random() * 2 - 1;
+    data[i] = (lastOut + (0.02 * white)) / 1.02;
+    lastOut = data[i];
+    data[i] *= 3.5; // Compensa volume
+  }
+
+  const noiseSrc = audioCtx.createBufferSource();
+  noiseSrc.buffer = buffer;
+  noiseSrc.loop = true;
+  
+  // Controle de Volume Suave
+  const gainNode = audioCtx.createGain();
+  gainNode.gain.value = 0.15; // Volume confortável (Marrom é grave/forte)
+  
+  noiseSrc.connect(gainNode);
+  gainNode.connect(audioCtx.destination);
+  
+  return { source: noiseSrc, gain: gainNode };
+}
+
+function toggleBrownNoise(shouldPlay) {
+  initAudio(); // Garante que o audio context existe
+  
+  // Parar som existente se houver
+  if (brownNoiseNode) {
+    try { brownNoiseNode.source.stop(); } catch(e){}
+    brownNoiseNode.source.disconnect();
+    brownNoiseNode.gain.disconnect();
+    brownNoiseNode = null;
+  }
+
+  // Tocar novo som se for apropriado
+  if (shouldPlay && currentInterval === 'pomodoro' && brownNoiseEnabled && !isRinging) {
+    brownNoiseNode = createBrownNoise();
+    brownNoiseNode.source.start(0);
+  }
+}
+
+// 2. Gerador de Alarme (Bip Digital)
+function playAlarmBeep() {
+  initAudio();
+  
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  
+  osc.type = 'square'; // Som estilo relógio digital antigo
+  osc.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
+  osc.frequency.setValueAtTime(1760, audioCtx.currentTime + 0.1); // Oitava acima (pi-PÍ!)
+  
+  gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.5);
+
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  
+  osc.start();
+  osc.stop(audioCtx.currentTime + 0.6);
+}
+
+function startAlarmLoop() {
+  if (isRinging) return; // Já está tocando
+  isRinging = true;
+  
+  // Toca o primeiro imediatamente
+  playAlarmBeep();
+  
+  // Repete a cada 1 segundo
+  alarmInterval = setInterval(() => {
+    playAlarmBeep();
+  }, 1000);
+}
+
+function stopAlarmLoop() {
+  isRinging = false;
+  clearInterval(alarmInterval);
+  document.body.classList.remove('alarm-flashing');
+  startStopBtn.textContent = 'Start';
+}
+
+// --- DOM ELEMENTS & SETUP ---
 const timeLeftEl = document.getElementById('time-left');
 const startStopBtn = document.getElementById('start-stop-btn');
 const resetBtn = document.getElementById('reset-btn');
-const pomodoroIntervalBtn = document.getElementById('pomodoro-interval-btn');
-const shortBreakIntervalBtn = document.getElementById('short-break-interval-btn');
-const longBreakIntervalBtn = document.getElementById('long-break-interval-btn');
+const intervalBtns = {
+  pomodoro: document.getElementById('pomodoro-interval-btn'),
+  short: document.getElementById('short-break-interval-btn'),
+  long: document.getElementById('long-break-interval-btn')
+};
 const settingsBtn = document.getElementById('settings-btn');
 const settingsModal = document.getElementById('settings-modal');
 const closeModalBtn = document.querySelector('.close-btn');
-const backgroundColorSelect = document.getElementById('background-color');
-const fontColorSelect = document.getElementById('font-color');
-const brownNoiseToggle = document.getElementById('brown-noise-toggle'); // Checkbox novo
 const saveBtn = document.getElementById('save-btn');
+const inputs = {
+  bg: document.getElementById('background-color'),
+  font: document.getElementById('font-color'),
+  noise: document.getElementById('brown-noise-toggle')
+};
 
-// --- HACK: Desbloquear Áudio (Navegadores) ---
-function unlockAudio() {
-  if (!audioUnlocked) {
-    // Toca mudo rapidinho pra liberar permissão
-    alarmSound.volume = 0;
-    brownNoise.volume = 0;
-    
-    Promise.all([alarmSound.play(), brownNoise.play()]).then(() => {
-      alarmSound.pause();
-      brownNoise.pause();
-      alarmSound.currentTime = 0;
-      brownNoise.currentTime = 0;
-      
-      // Restaura volumes originais
-      alarmSound.volume = 1; 
-      brownNoise.volume = 0.6;
-      audioUnlocked = true;
-    }).catch(e => console.log("Erro ao desbloquear áudio:", e));
-  }
-}
-
-// --- CONTROLE DO BROWN NOISE ---
-function toggleBrownNoise(shouldPlay) {
-  // Só toca se: tiver pedido play E o modo for Pomodoro E a opção estiver ativa
-  if (shouldPlay && currentInterval === 'pomodoro' && brownNoiseEnabled) {
-    brownNoise.play().catch(e => console.log("Erro audio:", e));
-  } else {
-    brownNoise.pause();
-  }
-}
-
-function stopAlarm() {
-  alarmSound.pause();
-  alarmSound.currentTime = 0; 
-  isRinging = false;
-  startStopBtn.textContent = 'Start';
-  document.body.classList.remove('alarm-flashing');
-}
+// --- LOGIC ---
 
 function switchMode(mode) {
   currentInterval = mode;
-  // Se mudar de modo, para o Brown Noise imediatamente
-  toggleBrownNoise(false);
-
-  if (mode === 'pomodoro') {
-    timeLeft = 25 * 60;
-  } else if (mode === 'short-break') {
-    timeLeft = 5 * 60;
-  } else if (mode === 'long-break') {
-    timeLeft = 10 * 60; 
-  }
-  updateTimeLeftTextContent();
+  toggleBrownNoise(false); // Para ruído ao trocar
+  stopAlarmLoop();
+  
+  if (mode === 'pomodoro') timeLeft = 25 * 60;
+  else if (mode === 'short-break') timeLeft = 5 * 60;
+  else if (mode === 'long-break') timeLeft = 10 * 60;
+  
+  updateDisplay();
 }
 
-// Event listeners de Intervalos
-pomodoroIntervalBtn.addEventListener('click', () => { stopTimer(); stopAlarm(); switchMode('pomodoro'); });
-shortBreakIntervalBtn.addEventListener('click', () => { stopTimer(); stopAlarm(); switchMode('short-break'); });
-longBreakIntervalBtn.addEventListener('click', () => { stopTimer(); stopAlarm(); switchMode('long-break'); });
+intervalBtns.pomodoro.addEventListener('click', () => { stopTimer(); switchMode('pomodoro'); });
+intervalBtns.short.addEventListener('click', () => { stopTimer(); switchMode('short-break'); });
+intervalBtns.long.addEventListener('click', () => { stopTimer(); switchMode('long-break'); });
 
-// --- LÓGICA START/STOP ---
 startStopBtn.addEventListener('click', () => {
-  unlockAudio(); 
+  initAudio(); // Importante: desbloqueia audio no primeiro clique
 
   if (isRinging) {
-    stopAlarm();
-    return; 
+    stopAlarmLoop();
+    // Prepara próximo ciclo automaticamente (mas não inicia)
+    if (currentInterval === 'pomodoro') {
+      pomodoroCount++;
+      if (pomodoroCount % 2 === 0) switchMode('long-break');
+      else switchMode('short-break');
+    } else {
+      switchMode('pomodoro');
+    }
+    return;
   }
 
-  if (startStopBtn.textContent === 'Start') {
-    startTimer();
-    startStopBtn.textContent = 'Pause';
-    // Tenta ligar o Brown Noise se estiver no modo foco
-    toggleBrownNoise(true);
-  } else {
+  if (timerInterval) {
+    // Está rodando, vamos pausar
     stopTimer();
     startStopBtn.textContent = 'Start';
-    // Pausa o Brown Noise
     toggleBrownNoise(false);
+  } else {
+    // Está parado, vamos iniciar
+    startTimer();
+    startStopBtn.textContent = 'Pause';
+    toggleBrownNoise(true);
   }
 });
 
 resetBtn.addEventListener('click', () => {
   stopTimer();
-  stopAlarm();
-  toggleBrownNoise(false);
-  pomodoroCount = 0; 
+  stopAlarmLoop();
+  pomodoroCount = 0;
   switchMode('pomodoro');
   startStopBtn.textContent = 'Start';
 });
 
-// --- SETTINGS ---
-settingsBtn.addEventListener('click', () => { 
-  // Carrega estado atual do checkbox ao abrir
-  brownNoiseToggle.checked = brownNoiseEnabled;
-  settingsModal.style.display = 'flex'; 
-});
-
-closeModalBtn.addEventListener('click', () => { settingsModal.style.display = 'none'; });
-
-saveBtn.addEventListener('click', () => {
-  localStorage.setItem('backgroundColor', backgroundColorSelect.value);
-  localStorage.setItem('fontColor', fontColorSelect.value);
-  // Salva preferência do Brown Noise (true/false)
-  localStorage.setItem('brownNoiseEnabled', brownNoiseToggle.checked);
-  
-  applyUserPreferences();
-  settingsModal.style.display = 'none';
-});
-
-// --- TIMER LOGIC ---
+// Timer Core
 function startTimer() {
-  clearInterval(timerInterval); 
+  if (timerInterval) clearInterval(timerInterval);
   endTime = Date.now() + (timeLeft * 1000);
-
+  
   timerInterval = setInterval(() => {
-    const secondsRemaining = Math.ceil((endTime - Date.now()) / 1000);
-    timeLeft = secondsRemaining;
-
+    const remaining = Math.ceil((endTime - Date.now()) / 1000);
+    timeLeft = remaining;
+    
     if (timeLeft >= 0) {
-        updateTimeLeftTextContent();
-    }
-
-    if (timeLeft <= 0) {
-      clearInterval(timerInterval); 
-      timeLeft = 0; 
-      updateTimeLeftTextContent();
-
-      // PARAR Brown Noise, TOCAR Alarme
-      toggleBrownNoise(false);
+      updateDisplay();
+    } else {
+      // TEMPO ACABOU
+      stopTimer();
+      timeLeft = 0;
+      updateDisplay();
       
-      isRinging = true;
-      startStopBtn.textContent = 'STOP ALARM'; 
-      alarmSound.play();
+      startStopBtn.textContent = 'STOP ALARM';
       document.body.classList.add('alarm-flashing');
-
-      // Prepara próximo ciclo
-      if (currentInterval === 'pomodoro') {
-        pomodoroCount++;
-        if (pomodoroCount % 2 === 0) {
-          switchMode('long-break'); 
-        } else {
-          switchMode('short-break');
-        }
-      } else {
-        switchMode('pomodoro');
-      }
+      toggleBrownNoise(false); // Para o ruído de fundo
+      startAlarmLoop(); // Inicia o bip bip
     }
-  }, 1000); 
+  }, 1000);
 }
 
 function stopTimer() {
   clearInterval(timerInterval);
-  toggleBrownNoise(false); // Garante que para o ruído ao pausar
+  timerInterval = null;
 }
 
-function updateTimeLeftTextContent() {
-  const minutes = Math.floor(timeLeft / 60);
-  const seconds = timeLeft % 60;
-  timeLeftEl.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+function updateDisplay() {
+  const m = Math.floor(timeLeft / 60);
+  const s = timeLeft % 60;
+  timeLeftEl.textContent = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  document.title = `${timeLeftEl.textContent} - Pomodoro`;
 }
 
-function applyUserPreferences() {
-  const savedBackgroundColor = localStorage.getItem('backgroundColor');
-  const savedFontColor = localStorage.getItem('fontColor');
-  const savedBrownNoise = localStorage.getItem('brownNoiseEnabled');
-
-  if (savedBackgroundColor) backgroundColor = savedBackgroundColor;
-  if (savedFontColor) fontColor = savedFontColor;
+// Settings Modal
+settingsBtn.addEventListener('click', () => {
+  inputs.bg.value = backgroundColor;
+  inputs.font.value = fontColor;
+  inputs.noise.checked = brownNoiseEnabled;
+  settingsModal.style.display = 'flex';
+});
+closeModalBtn.addEventListener('click', () => { settingsModal.style.display = 'none'; });
+saveBtn.addEventListener('click', () => {
+  backgroundColor = inputs.bg.value;
+  fontColor = inputs.font.value;
+  brownNoiseEnabled = inputs.noise.checked;
   
-  // Converte string 'true'/'false' do localStorage para boolean real
-  if (savedBrownNoise !== null) {
-    brownNoiseEnabled = (savedBrownNoise === 'true');
-  }
+  localStorage.setItem('pomodoroConfig', JSON.stringify({
+    bg: backgroundColor,
+    font: fontColor,
+    noise: brownNoiseEnabled
+  }));
+  
+  applyPreferences();
+  settingsModal.style.display = 'none';
+});
 
+function applyPreferences() {
+  const saved = JSON.parse(localStorage.getItem('pomodoroConfig'));
+  if (saved) {
+    backgroundColor = saved.bg;
+    fontColor = saved.font;
+    brownNoiseEnabled = saved.noise;
+  }
+  
   document.body.style.backgroundColor = backgroundColor;
   document.body.style.color = fontColor;
-  timeLeftEl.style.color = fontColor;
   
-  const buttons = document.querySelectorAll('.interval-btn, #start-stop-btn, #reset-btn, #settings-btn');
-  buttons.forEach((button) => {
-    button.style.color = fontColor;
-    button.style.backgroundColor = backgroundColor;
-    button.style.borderColor = fontColor;
+  // Atualiza cores dos botões
+  const buttons = document.querySelectorAll('button, .interval-btn');
+  buttons.forEach(btn => {
+    btn.style.borderColor = fontColor;
+    btn.style.color = fontColor;
   });
+  
+  // Se mudar settings enquanto roda, ajusta som
+  if (timerInterval && currentInterval === 'pomodoro') {
+    toggleBrownNoise(true);
+  }
 }
 
-applyUserPreferences();
+// Init
+applyPreferences();
+updateDisplay();
