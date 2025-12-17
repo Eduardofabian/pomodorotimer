@@ -5,13 +5,12 @@
 :root {
   --bg-color: #F1F1EF;
   --text-color: #37352F;
-  --accent-color: #000000;
 }
 
 body {
   background-color: var(--bg-color);
   color: var(--text-color);
-  overflow: hidden; /* Evita barras de rolagem no Notion */
+  overflow: hidden;
   transition: background-color 0.3s ease, color 0.3s ease;
   margin: 0;
 }
@@ -32,7 +31,6 @@ body {
   color: #ffffff !important;
   border-color: #ffffff !important;
 }
-/* -------------------------- */
 
 #pomodoro-container {
   display: flex;
@@ -58,7 +56,7 @@ body {
 
 #time-left {
   font-family: "Karla", sans-serif;
-  font-size: 8rem; /* Um pouco menor para caber melhor no embed */
+  font-size: 8rem;
   font-weight: 800;
   text-align: center;
   letter-spacing: -4px;
@@ -72,9 +70,8 @@ body {
   margin-top: 20px;
 }
 
-/* Botões Gerais */
 button, .interval-btn {
-  border-radius: 6px; /* Bordas mais suaves estilo Notion */
+  border-radius: 6px;
   border: 1px solid var(--text-color);
   background: transparent;
   color: var(--text-color);
@@ -90,7 +87,7 @@ button:hover, .interval-btn:hover {
   color: var(--bg-color);
 }
 
-/* --- MODAL DE SETTINGS (REDESENHADO) --- */
+/* --- MODAL DE SETTINGS --- */
 #settings-modal {
   display: none;
   position: fixed;
@@ -100,7 +97,7 @@ button:hover, .interval-btn:hover {
   width: 100%;
   height: 100%;
   background-color: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(2px); /* Efeito moderno */
+  backdrop-filter: blur(2px);
   align-items: center;
   justify-content: center;
 }
@@ -130,7 +127,7 @@ button:hover, .interval-btn:hover {
 .setting-wrapper {
   display: flex;
   flex-direction: column;
-  gap: 15px; /* Espaço uniforme entre as opções */
+  gap: 15px;
   margin-top: 20px;
 }
 
@@ -140,10 +137,9 @@ button:hover, .interval-btn:hover {
   font-size: 1.2rem;
 }
 
-/* A Mágica do Alinhamento Flexbox */
 .setting-option {
   display: flex;
-  justify-content: space-between; /* Joga texto p/ esquerda, input p/ direita */
+  justify-content: space-between;
   align-items: center;
   width: 100%;
   border-bottom: 1px solid #eee;
@@ -156,7 +152,6 @@ button:hover, .interval-btn:hover {
   color: #37352F;
 }
 
-/* Estilo dos Dropdowns */
 select {
   appearance: none;
   background-color: #F7F6F3;
@@ -168,14 +163,34 @@ select {
   color: #37352F;
   cursor: pointer;
   outline: none;
-  text-align: right; /* Texto alinhado a direita */
+  text-align: right;
 }
 
-/* Checkbox Customizado Simples */
 input[type="checkbox"] {
   transform: scale(1.3);
   cursor: pointer;
   accent-color: #37352F;
+}
+
+/* ESTILO DO SLIDER DE VOLUME */
+input[type="range"] {
+  -webkit-appearance: none;
+  width: 100px;
+  height: 6px;
+  background: #e0e0e0;
+  border-radius: 5px;
+  outline: none;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #37352F;
+  cursor: pointer;
 }
 
 #save-btn {
