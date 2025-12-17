@@ -8,11 +8,11 @@ let isRinging = false;
 
 // Preferências
 let brownNoiseEnabled = false;
+let brownNoiseVolume = 0.5; // Começa na metade (ajustável)
 let backgroundColor = '#F1F1EF';
 let fontColor = '#37352F';
 
-// --- AUDIO ENGINE (Sintetizador Web Audio API) ---
-// Resolve problema de CORS e Notion bloqueando arquivos externos
+// --- AUDIO ENGINE ---
 const AudioContext = window.AudioContext || window.webkitAudioContext;
 let audioCtx;
 let brownNoiseNode = null;
@@ -28,9 +28,9 @@ function initAudio() {
   }
 }
 
-// 1. Gerador de Brown Noise (Ruído Marrom)
+// 1. Gerador de Brown Noise Ajustável
 function createBrownNoise() {
-  const bufferSize = audioCtx.sampleRate * 2; // 2 segundos de buffer
+  const bufferSize = audioCtx.sampleRate * 2; 
   const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
   const data = buffer.getChannelData(0);
   let lastOut = 0;
@@ -39,16 +39,16 @@ function createBrownNoise() {
     const white = Math.random() * 2 - 1;
     data[i] = (lastOut + (0.02 * white)) / 1.02;
     lastOut = data[i];
-    data[i] *= 3.5; // Compensa volume
+    data[i] *= 3.5; 
   }
 
   const noiseSrc = audioCtx.createBufferSource();
   noiseSrc.buffer = buffer;
   noiseSrc.loop = true;
   
-  // Controle de Volume Suave
   const gainNode = audioCtx.createGain();
-  gainNode.gain.value = 0.15; // Volume confortável (Marrom é grave/forte)
+  // Usa o volume definido pelo slider
+  gainNode.gain.value = brownNoiseVolume; 
   
   noiseSrc.connect(gainNode);
   gainNode.connect(audioCtx.destination);
@@ -57,9 +57,8 @@ function createBrownNoise() {
 }
 
 function toggleBrownNoise(shouldPlay) {
-  initAudio(); // Garante que o audio context existe
+  initAudio(); 
   
-  // Parar som existente se houver
   if (brownNoiseNode) {
     try { brownNoiseNode.source.stop(); } catch(e){}
     brownNoiseNode.source.disconnect();
@@ -67,23 +66,29 @@ function toggleBrownNoise(shouldPlay) {
     brownNoiseNode = null;
   }
 
-  // Tocar novo som se for apropriado
   if (shouldPlay && currentInterval === 'pomodoro' && brownNoiseEnabled && !isRinging) {
     brownNoiseNode = createBrownNoise();
     brownNoiseNode.source.start(0);
   }
 }
 
-// 2. Gerador de Alarme (Bip Digital)
+// Atualiza volume em tempo real (enquanto mexe no slider)
+function updateVolumeRealTime(val) {
+  brownNoiseVolume = val;
+  if (brownNoiseNode) {
+    brownNoiseNode.gain.gain.setValueAtTime(val, audioCtx.currentTime);
+  }
+}
+
+// 2. Gerador de Alarme
 function playAlarmBeep() {
   initAudio();
-  
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
   
-  osc.type = 'square'; // Som estilo relógio digital antigo
-  osc.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
-  osc.frequency.setValueAtTime(1760, audioCtx.currentTime + 0.1); // Oitava acima (pi-PÍ!)
+  osc.type = 'square'; 
+  osc.frequency.setValueAtTime(880, audioCtx.currentTime); 
+  osc.frequency.setValueAtTime(1760, audioCtx.currentTime + 0.1); 
   
   gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
   gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.5);
@@ -96,13 +101,9 @@ function playAlarmBeep() {
 }
 
 function startAlarmLoop() {
-  if (isRinging) return; // Já está tocando
+  if (isRinging) return; 
   isRinging = true;
-  
-  // Toca o primeiro imediatamente
   playAlarmBeep();
-  
-  // Repete a cada 1 segundo
   alarmInterval = setInterval(() => {
     playAlarmBeep();
   }, 1000);
@@ -115,7 +116,7 @@ function stopAlarmLoop() {
   startStopBtn.textContent = 'Start';
 }
 
-// --- DOM ELEMENTS & SETUP ---
+// --- DOM ELEMENTS ---
 const timeLeftEl = document.getElementById('time-left');
 const startStopBtn = document.getElementById('start-stop-btn');
 const resetBtn = document.getElementById('reset-btn');
@@ -131,14 +132,14 @@ const saveBtn = document.getElementById('save-btn');
 const inputs = {
   bg: document.getElementById('background-color'),
   font: document.getElementById('font-color'),
-  noise: document.getElementById('brown-noise-toggle')
+  noise: document.getElementById('brown-noise-toggle'),
+  volume: document.getElementById('volume-slider') // Novo input
 };
 
 // --- LOGIC ---
-
 function switchMode(mode) {
   currentInterval = mode;
-  toggleBrownNoise(false); // Para ruído ao trocar
+  toggleBrownNoise(false); 
   stopAlarmLoop();
   
   if (mode === 'pomodoro') timeLeft = 25 * 60;
@@ -153,11 +154,10 @@ intervalBtns.short.addEventListener('click', () => { stopTimer(); switchMode('sh
 intervalBtns.long.addEventListener('click', () => { stopTimer(); switchMode('long-break'); });
 
 startStopBtn.addEventListener('click', () => {
-  initAudio(); // Importante: desbloqueia audio no primeiro clique
+  initAudio(); 
 
   if (isRinging) {
     stopAlarmLoop();
-    // Prepara próximo ciclo automaticamente (mas não inicia)
     if (currentInterval === 'pomodoro') {
       pomodoroCount++;
       if (pomodoroCount % 2 === 0) switchMode('long-break');
@@ -169,12 +169,10 @@ startStopBtn.addEventListener('click', () => {
   }
 
   if (timerInterval) {
-    // Está rodando, vamos pausar
     stopTimer();
     startStopBtn.textContent = 'Start';
     toggleBrownNoise(false);
   } else {
-    // Está parado, vamos iniciar
     startTimer();
     startStopBtn.textContent = 'Pause';
     toggleBrownNoise(true);
@@ -189,7 +187,6 @@ resetBtn.addEventListener('click', () => {
   startStopBtn.textContent = 'Start';
 });
 
-// Timer Core
 function startTimer() {
   if (timerInterval) clearInterval(timerInterval);
   endTime = Date.now() + (timeLeft * 1000);
@@ -201,15 +198,13 @@ function startTimer() {
     if (timeLeft >= 0) {
       updateDisplay();
     } else {
-      // TEMPO ACABOU
       stopTimer();
       timeLeft = 0;
       updateDisplay();
-      
       startStopBtn.textContent = 'STOP ALARM';
       document.body.classList.add('alarm-flashing');
-      toggleBrownNoise(false); // Para o ruído de fundo
-      startAlarmLoop(); // Inicia o bip bip
+      toggleBrownNoise(false); 
+      startAlarmLoop(); 
     }
   }, 1000);
 }
@@ -226,23 +221,36 @@ function updateDisplay() {
   document.title = `${timeLeftEl.textContent} - Pomodoro`;
 }
 
-// Settings Modal
+// Settings Modal Events
 settingsBtn.addEventListener('click', () => {
   inputs.bg.value = backgroundColor;
   inputs.font.value = fontColor;
   inputs.noise.checked = brownNoiseEnabled;
+  inputs.volume.value = brownNoiseVolume; // Carrega posição do slider
+  
+  // Se o ruído estiver tocando, permitimos "preview" ao mexer no modal
+  // Se não estiver, tocamos um pouquinho? Não, melhor só ajustar se já estiver ligado.
   settingsModal.style.display = 'flex';
 });
+
+// Listener para o Slider (Tempo real)
+inputs.volume.addEventListener('input', (e) => {
+  updateVolumeRealTime(e.target.value);
+});
+
 closeModalBtn.addEventListener('click', () => { settingsModal.style.display = 'none'; });
+
 saveBtn.addEventListener('click', () => {
   backgroundColor = inputs.bg.value;
   fontColor = inputs.font.value;
   brownNoiseEnabled = inputs.noise.checked;
+  brownNoiseVolume = inputs.volume.value;
   
   localStorage.setItem('pomodoroConfig', JSON.stringify({
     bg: backgroundColor,
     font: fontColor,
-    noise: brownNoiseEnabled
+    noise: brownNoiseEnabled,
+    volume: brownNoiseVolume
   }));
   
   applyPreferences();
@@ -255,19 +263,19 @@ function applyPreferences() {
     backgroundColor = saved.bg;
     fontColor = saved.font;
     brownNoiseEnabled = saved.noise;
+    if (saved.volume !== undefined) brownNoiseVolume = saved.volume;
   }
   
   document.body.style.backgroundColor = backgroundColor;
   document.body.style.color = fontColor;
   
-  // Atualiza cores dos botões
   const buttons = document.querySelectorAll('button, .interval-btn');
   buttons.forEach(btn => {
     btn.style.borderColor = fontColor;
     btn.style.color = fontColor;
   });
   
-  // Se mudar settings enquanto roda, ajusta som
+  // Atualiza som se estiver rodando
   if (timerInterval && currentInterval === 'pomodoro') {
     toggleBrownNoise(true);
   }
