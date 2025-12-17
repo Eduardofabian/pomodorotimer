@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pomodoro Timer + Brown Noise</title>
+  <title>Pomodoro Timer</title>
   <link rel="stylesheet" href="./style.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
 </head>
@@ -31,12 +31,18 @@
       <div class="setting-wrapper">
         <h3>Settings</h3>
         
-        <div class="setting-option" style="display: flex; align-items: center; justify-content: center; margin-bottom: 20px;">
-          <label for="brown-noise-toggle" style="margin-right: 10px; cursor: pointer;">Play Brown Noise during Focus?</label>
-          <input type="checkbox" id="brown-noise-toggle" style="transform: scale(1.5); cursor: pointer;">
-        </div>
         <div class="setting-option">
-          <label for="background-color">Background Color</label>
+          <label for="brown-noise-toggle">Play Brown Noise?</label>
+          <input type="checkbox" id="brown-noise-toggle">
+        </div>
+
+        <div class="setting-option">
+          <label for="volume-slider">Noise Volume</label>
+          <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="0.5">
+        </div>
+
+        <div class="setting-option">
+          <label for="background-color">Background</label>
           <select id="background-color">
             <option value="#FFFFFF">LM Default White</option>
             <option value="#F7F6F3">LM Off White</option>
