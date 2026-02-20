@@ -1,10 +1,10 @@
 // Global Variables
 let timeLeft = 25 * 60; 
-let timerInterval;
+let timerInterval = null;
 let currentInterval = 'pomodoro';
 let pomodoroCount = 0; 
 let isRinging = false; 
-let isCountdown = true; // Define se é Regressivo (true) ou Progressivo (false)
+let isCountdown = true; // true = 25->0 | false = 0->25
 
 // Preferências
 let brownNoiseEnabled = false;
@@ -28,14 +28,12 @@ function createBrownNoise() {
   const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
   const data = buffer.getChannelData(0);
   let lastOut = 0;
-  
   for (let i = 0; i < bufferSize; i++) {
     const white = Math.random() * 2 - 1;
     data[i] = (lastOut + (0.02 * white)) / 1.02;
     lastOut = data[i];
     data[i] *= 3.5; 
   }
-
   const noiseSrc = audioCtx.createBufferSource();
   noiseSrc.buffer = buffer;
   noiseSrc.loop = true;
@@ -60,18 +58,12 @@ function toggleBrownNoise(shouldPlay) {
   }
 }
 
-function updateVolumeRealTime(val) {
-  brownNoiseVolume = val;
-  if (brownNoiseNode) brownNoiseNode.gain.gain.setValueAtTime(val, audioCtx.currentTime);
-}
-
 function playAlarmBeep() {
   initAudio();
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
   osc.type = 'square'; 
   osc.frequency.setValueAtTime(880, audioCtx.currentTime); 
-  osc.frequency.setValueAtTime(1760, audioCtx.currentTime + 0.1); 
   gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
   gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.5);
   osc.connect(gain);
@@ -117,43 +109,47 @@ const inputs = {
 
 // --- LOGIC ---
 function updateDisplay() {
-  const m = Math.floor(Math.abs(timeLeft) / 60);
-  const s = Math.abs(timeLeft) % 60;
+  const m = Math.floor(timeLeft / 60);
+  const s = timeLeft % 60;
   timeLeftEl.textContent = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   document.title = `${timeLeftEl.textContent} - Pomodoro`;
 }
 
 function switchMode(mode) {
   currentInterval = mode;
-  toggleBrownNoise(false); 
+  stopTimer();
   stopAlarmLoop();
-  
-  let baseTime = 25;
-  if (mode === 'short-break') baseTime = 5;
-  else if (mode === 'long-break') baseTime = 10;
+  toggleBrownNoise(false);
 
-  timeLeft = isCountdown ? baseTime * 60 : 0;
+  let baseMinutes = 25;
+  if (mode === 'short-break') baseMinutes = 5;
+  if (mode === 'long-break') baseMinutes = 10;
+
+  // SE for contagem regressiva, começa no tempo cheio. SE for cronômetro, começa em 0.
+  timeLeft = isCountdown ? (baseMinutes * 60) : 0;
+  
   updateDisplay();
 }
 
-// Alternar entre Timer e Cronômetro
+// BOTÃO DE ALTERNAR MODO (Timer vs Cronômetro)
 modeToggleBtn.addEventListener('click', () => {
-  if (timerInterval) return; // Bloqueia troca enquanto roda
+  if (timerInterval) return; // Não muda enquanto estiver rodando
+  
   isCountdown = !isCountdown;
   
   if (isCountdown) {
-    modeToggleBtn.innerHTML = '<i class="fas fa-history"></i>';
-    switchMode(currentInterval);
+    modeToggleBtn.innerHTML = '<i class="fas fa-history"></i>'; // Ícone Timer
   } else {
-    modeToggleBtn.innerHTML = '<i class="fas fa-stopwatch"></i>';
-    timeLeft = 0;
+    modeToggleBtn.innerHTML = '<i class="fas fa-stopwatch"></i>'; // Ícone Cronômetro
   }
-  updateDisplay();
+  
+  // Força o reset do tempo para o novo modo
+  switchMode(currentInterval);
 });
 
-intervalBtns.pomodoro.addEventListener('click', () => { stopTimer(); switchMode('pomodoro'); });
-intervalBtns.short.addEventListener('click', () => { stopTimer(); switchMode('short-break'); });
-intervalBtns.long.addEventListener('click', () => { stopTimer(); switchMode('long-break'); });
+intervalBtns.pomodoro.addEventListener('click', () => switchMode('pomodoro'));
+intervalBtns.short.addEventListener('click', () => switchMode('short-break'));
+intervalBtns.long.addEventListener('click', () => switchMode('long-break'));
 
 startStopBtn.addEventListener('click', () => {
   initAudio(); 
@@ -180,9 +176,6 @@ startStopBtn.addEventListener('click', () => {
 });
 
 resetBtn.addEventListener('click', () => {
-  stopTimer();
-  stopAlarmLoop();
-  pomodoroCount = 0;
   switchMode(currentInterval);
   startStopBtn.textContent = 'Start';
 });
@@ -190,8 +183,8 @@ resetBtn.addEventListener('click', () => {
 function startTimer() {
   if (timerInterval) clearInterval(timerInterval);
   
-  // Define o alvo baseado no modo atual para o alarme saber quando tocar
-  const target = (currentInterval === 'pomodoro' ? 25 : currentInterval === 'short-break' ? 5 : 10) * 60;
+  // O limite (alvo) é sempre o tempo definido para o intervalo atual
+  const limit = (currentInterval === 'pomodoro' ? 25 : currentInterval === 'short-break' ? 5 : 10) * 60;
 
   timerInterval = setInterval(() => {
     if (isCountdown) {
@@ -199,7 +192,7 @@ function startTimer() {
       if (timeLeft <= 0) finishSession();
     } else {
       timeLeft++;
-      if (timeLeft >= target) finishSession();
+      if (timeLeft >= limit) finishSession();
     }
     updateDisplay();
   }, 1000);
@@ -207,7 +200,6 @@ function startTimer() {
 
 function finishSession() {
   stopTimer();
-  updateDisplay();
   startStopBtn.textContent = 'STOP ALARM';
   document.body.classList.add('alarm-flashing');
   toggleBrownNoise(false); 
@@ -219,7 +211,7 @@ function stopTimer() {
   timerInterval = null;
 }
 
-// Settings Modal
+// Configurações
 settingsBtn.addEventListener('click', () => {
   inputs.bg.value = backgroundColor;
   inputs.font.value = fontColor;
@@ -228,7 +220,6 @@ settingsBtn.addEventListener('click', () => {
   settingsModal.style.display = 'flex';
 });
 
-inputs.volume.addEventListener('input', (e) => updateVolumeRealTime(e.target.value));
 closeModalBtn.addEventListener('click', () => settingsModal.style.display = 'none');
 
 saveBtn.addEventListener('click', () => {
@@ -247,7 +238,7 @@ function applyPreferences() {
   const saved = JSON.parse(localStorage.getItem('pomodoroConfig'));
   if (saved) {
     backgroundColor = saved.bg; fontColor = saved.font;
-    brownNoiseEnabled = saved.noise; brownNoiseVolume = saved.volume || 0.5;
+    brownNoiseEnabled = saved.noise; brownNoiseVolume = saved.volume;
   }
   document.body.style.backgroundColor = backgroundColor;
   document.body.style.color = fontColor;
