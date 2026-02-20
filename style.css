@@ -1,111 +1,42 @@
-@import url("https://fonts.googleapis.com/css2?family=Karla:wght@800&family=Rubik:wght@400;500;700&display=swap");
-
-:root {
-  --bg-color: #F1F1EF;
-  --text-color: #37352F;
-}
-
 body {
-  background-color: var(--bg-color);
-  color: var(--text-color);
-  overflow: hidden;
-  transition: background-color 0.3s ease, color 0.3s ease;
-  margin: 0;
-}
-
-@keyframes urgent-flash {
-  0% { background-color: #ff3b3b; }
-  50% { background-color: #4a0f0f; }
-  100% { background-color: #ff3b3b; }
-}
-
-.alarm-flashing {
-  animation: urgent-flash 0.8s infinite !important;
-  background-color: #ff3b3b !important;
-}
-
-.alarm-flashing * {
-  color: #ffffff !important;
-  border-color: #ffffff !important;
-}
-
-#pomodoro-container {
+  font-family: 'Rubik', sans-serif;
   display: flex;
-  flex-direction: column;
-  align-items: center;
   justify-content: center;
+  align-items: center;
   height: 100vh;
-  width: 100%;
+  margin: 0;
+  transition: 0.3s;
 }
 
-#interval-container {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 20px;
-}
+#pomodoro-container { text-align: center; }
 
 #time-left {
-  font-family: "Karla", sans-serif;
+  font-family: 'Karla', sans-serif;
   font-size: 8rem;
-  letter-spacing: -4px;
-  line-height: 1;
+  font-weight: 800;
+  margin: 20px 0;
 }
 
-#start-stop-reset-container {
-  display: flex;
-  gap: 15px;
-  margin-top: 25px;
-}
-
-button, .interval-btn {
-  border-radius: 6px;
-  border: 1px solid var(--text-color);
-  background: transparent;
-  color: var(--text-color);
-  font-family: "Rubik", sans-serif;
-  font-size: 1rem;
-  padding: 8px 16px;
+button {
+  padding: 10px 20px;
   cursor: pointer;
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  border: 1px solid;
+  background: transparent;
+  border-radius: 5px;
+  margin: 5px;
 }
 
-button:hover, .interval-btn:hover {
-  background-color: var(--text-color);
-  color: var(--bg-color);
-}
-
-/* Modal e Outros */
-#settings-modal {
+.modal {
   display: none;
   position: fixed;
-  z-index: 10;
-  left: 0; top: 0; width: 100%; height: 100%;
-  background-color: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(2px);
-  align-items: center; justify-content: center;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.5);
+  justify-content: center; align-items: center;
 }
 
 .modal-content {
-  background-color: #FFFFFF;
-  color: #37352F;
-  width: 90%; max-width: 350px;
-  padding: 25px; border-radius: 12px;
-  position: relative;
+  background: white; padding: 20px; border-radius: 10px; color: #333;
 }
 
-.close-btn { position: absolute; top: 15px; right: 20px; font-size: 24px; cursor: pointer; color: #999; }
-
-.setting-option {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 10px 0; border-bottom: 1px solid #eee;
-}
-
-input[type="range"] { cursor: pointer; }
-
-#save-btn {
-  width: 100%; margin-top: 20px;
-  background-color: #37352F; color: white; border: none;
-}
+.alarm-flashing { animation: flash 0.5s infinite; }
+@keyframes flash { 50% { background: red; color: white; } }
