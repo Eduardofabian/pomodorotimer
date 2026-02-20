@@ -1,10 +1,13 @@
 // Variáveis de Estado
-let timeLeft = 25 * 60; 
+let timeLeft = 25 * 60; // Segundos restantes ou decorridos
 let timerInterval = null;
 let currentInterval = 'pomodoro';
-let isCountdown = true; // true = 25:00 -> 0 | false = 0 -> 25:00
+let isCountdown = true; 
 let isRinging = false;
-let pomodoroCount = 0;
+
+// Variáveis para Lógica de Timestamp (Tempo Real)
+let startTime = null;
+let timeAtPause = 25 * 60; 
 
 // Preferências
 let brownNoiseEnabled = false;
@@ -12,7 +15,7 @@ let brownNoiseVolume = 0.5;
 let backgroundColor = '#F1F1EF';
 let fontColor = '#37352F';
 
-// --- AUDIO ---
+// --- AUDIO ENGINE ---
 const AudioContext = window.AudioContext || window.webkitAudioContext;
 let audioCtx, brownNoiseNode, alarmInterval;
 
@@ -54,64 +57,76 @@ function toggleBrownNoise(play) {
     }
 }
 
-// --- LOGICA DO TIMER ---
+// --- LÓGICA CORE ---
 const timeLeftEl = document.getElementById('time-left');
 const startStopBtn = document.getElementById('start-stop-btn');
 const modeToggleBtn = document.getElementById('mode-toggle-btn');
 
 function updateDisplay() {
-    const m = Math.floor(timeLeft / 60);
-    const s = timeLeft % 60;
+    const m = Math.floor(Math.abs(timeLeft) / 60);
+    const s = Math.abs(timeLeft) % 60;
     timeLeftEl.textContent = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    document.title = `${timeLeftEl.textContent} - Pomodoro`;
 }
 
 function switchMode(mode) {
-    clearInterval(timerInterval);
-    timerInterval = null;
+    stopTimer();
     currentInterval = mode;
-    startStopBtn.textContent = 'Start';
-
     let mins = (mode === 'short-break' ? 5 : mode === 'long-break' ? 10 : 25);
     
-    // Se for cronômetro (isCountdown = false), ZERA o tempo. Se for timer, coloca os minutos.
-    timeLeft = isCountdown ? (mins * 60) : 0;
+    // Define o ponto inicial
+    timeAtPause = isCountdown ? (mins * 60) : 0;
+    timeLeft = timeAtPause;
     
     updateDisplay();
-    toggleBrownNoise(false);
 }
 
-// Botão de alternar Timer/Cronômetro
 modeToggleBtn.addEventListener('click', () => {
-    if (timerInterval) return; // Não muda se estiver rodando
+    if (timerInterval) return;
     isCountdown = !isCountdown;
     modeToggleBtn.innerHTML = isCountdown ? '<i class="fas fa-history"></i>' : '<i class="fas fa-stopwatch"></i>';
-    switchMode(currentInterval); // Reseta o tempo para o novo modo (0 ou X)
+    switchMode(currentInterval);
 });
 
 function startTimer() {
+    initAudio();
+    startTime = Date.now(); // Salva o momento exato do clique no Start
     const limit = (currentInterval === 'short-break' ? 5 : currentInterval === 'long-break' ? 10 : 25) * 60;
 
     timerInterval = setInterval(() => {
+        const currentTime = Date.now();
+        const secondsElapsed = Math.floor((currentTime - startTime) / 1000);
+
         if (isCountdown) {
-            timeLeft--;
-            if (timeLeft <= 0) finish();
+            timeLeft = timeAtPause - secondsElapsed;
+            if (timeLeft <= 0) {
+                timeLeft = 0;
+                finish();
+            }
         } else {
-            timeLeft++;
-            if (timeLeft >= limit) finish();
+            timeLeft = timeAtPause + secondsElapsed;
+            if (timeLeft >= limit) {
+                timeLeft = limit;
+                finish();
+            }
         }
         updateDisplay();
-    }, 1000);
+    }, 100); // Roda mais rápido (100ms) para ser ultra preciso
+}
+
+function stopTimer() {
+    clearInterval(timerInterval);
+    timerInterval = null;
+    timeAtPause = timeLeft; // Salva onde paramos para o próximo Start
+    toggleBrownNoise(false);
 }
 
 function finish() {
-    clearInterval(timerInterval);
-    timerInterval = null;
+    stopTimer();
     isRinging = true;
     document.body.classList.add('alarm-flashing');
     startStopBtn.textContent = 'STOP';
-    toggleBrownNoise(false);
     alarmInterval = setInterval(() => {
-        initAudio();
         const osc = audioCtx.createOscillator();
         const g = audioCtx.createGain();
         osc.type = 'square';
@@ -122,20 +137,19 @@ function finish() {
     }, 1000);
 }
 
-// Eventos
+// --- EVENTOS ---
 startStopBtn.addEventListener('click', () => {
     if (isRinging) {
         clearInterval(alarmInterval);
         isRinging = false;
         document.body.classList.remove('alarm-flashing');
+        startStopBtn.textContent = 'Start';
         switchMode(currentInterval);
         return;
     }
     if (timerInterval) {
-        clearInterval(timerInterval);
-        timerInterval = null;
+        stopTimer();
         startStopBtn.textContent = 'Start';
-        toggleBrownNoise(false);
     } else {
         startTimer();
         startStopBtn.textContent = 'Pause';
@@ -143,12 +157,16 @@ startStopBtn.addEventListener('click', () => {
     }
 });
 
-document.getElementById('reset-btn').addEventListener('click', () => switchMode(currentInterval));
+document.getElementById('reset-btn').addEventListener('click', () => {
+    switchMode(currentInterval);
+    startStopBtn.textContent = 'Start';
+});
+
 document.getElementById('pomodoro-interval-btn').addEventListener('click', () => switchMode('pomodoro'));
 document.getElementById('short-break-interval-btn').addEventListener('click', () => switchMode('short-break'));
 document.getElementById('long-break-interval-btn').addEventListener('click', () => switchMode('long-break'));
 
-// Modal
+// Modal & Configs
 const modal = document.getElementById('settings-modal');
 document.getElementById('settings-btn').onclick = () => modal.style.display = 'flex';
 document.querySelector('.close-btn').onclick = () => modal.style.display = 'none';
